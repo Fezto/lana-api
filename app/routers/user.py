@@ -5,33 +5,33 @@ from sqlmodel import Session, select
 
 from app.models import User
 from app.schemas.user import UserCreate, UserRead, UserUpdate
-from app.session import get_session, DatabaseSession
+from app.session import get_session
 from app.utils.hash import get_password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.get("/", response_model=List[UserRead], summary="List users")
-def api_read_users(*, session: Session = DatabaseSession, offset: int = 0, limit: int = 100):
-    # abre
-    users = session.exec(select(User).offset(offset).limit(limit)).all()
 
+@router.get("/", response_model=List[UserRead], summary="List users")
+def api_read_users(*, session: Session = Depends(get_session), offset: int = 0, limit: int = 100):
+    users = session.exec(select(User).offset(offset).limit(limit)).all()
     return users
-#cier
 
 
 @router.get("/{user_id}", response_model=UserRead, summary="Get a user by ID")
-def api_read_user(*, session: Session = DatabaseSession, user_id: int):
+def api_read_user(*, session: Session = Depends(get_session), user_id: int):
     user = session.get(User, user_id)
     return user
 
+
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary="Create a new user")
-def api_create_user(*, session: Session = DatabaseSession, user_in: UserCreate):
-    user = User.model_validate(user_in)
-    user.password_hash = get_password_hash(user.password)
+def api_create_user(*, session: Session = Depends(get_session), user_in: UserCreate):
+    user = User(**user_in.model_dump(exclude_unset=True), password_hash=get_password_hash(user_in.password))
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
+
+
 @router.patch("/{user_id}", response_model=UserRead, summary="Update a user")
 def api_update_user(*, session: Session = Depends(get_session), user_id: int, user_in: UserUpdate):
     user = session.get(User, user_id)
@@ -54,4 +54,3 @@ def api_delete_user(*, session: Session = Depends(get_session), user_id: int):
     user = session.get(User, user_id)
     session.delete(user)
     session.commit()
-
