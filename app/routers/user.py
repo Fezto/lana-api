@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, status
 from sqlmodel import Session, select
 
-from app.models import User
+from app.models.user import User
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.session import get_session
 from app.utils.hash import get_password_hash

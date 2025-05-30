@@ -1,8 +1,9 @@
 from enum import Enum
 from datetime import datetime
-from sqlmodel import Field, Column, Enum as SqlEnum
+from sqlmodel import Field, Column, Enum as SqlEnum, Relationship
 
 from .base import BaseModel
+
 
 class NotificationMethod(str, Enum):
     EMAIL = "email"
@@ -14,3 +15,5 @@ class Notification(BaseModel, table=True):
     method: NotificationMethod = Field(sa_column=Column(SqlEnum(NotificationMethod)))
     scheduled_at: datetime
     sent: bool = False
+
+    user: "User" = Relationship(back_populates="notifications")

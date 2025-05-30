@@ -1,10 +1,17 @@
-from datetime import datetime, timezone
-from sqlmodel import Field
+from typing import Optional
+
+from sqlmodel import Field, Relationship
 
 from .base import BaseModel
+
+
 
 class Budget(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     category_id: int = Field(foreign_key="category.id")
     amount: float
     month_year: str  # formato 'YYYY-MM'
+
+    user: "User" = Relationship(back_populates="transactions")
+    category: "Category" = Relationship(back_populates="transactions")
+    recurring: Optional["RecurringPayment"] = Relationship(back_populates="transactions")

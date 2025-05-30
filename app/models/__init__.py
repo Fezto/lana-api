@@ -2,7 +2,7 @@ from .budget import Budget
 from .category import Category
 from .email_verification import EmailVerification
 from .notification import Notification
-from .password_reset_request import PasswordResetRequest
+from .password_reset import PasswordReset
 from .recurring_payment import RecurringPayment
 from .refresh_token import RefreshToken
 from .transaction import Transaction
