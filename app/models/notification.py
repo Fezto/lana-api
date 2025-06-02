@@ -10,7 +10,7 @@ class NotificationMethod(str, Enum):
     SMS = "sms"
 
 class Notification(BaseModel, table=True):
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     message: str
     method: NotificationMethod = Field(sa_column=Column(SqlEnum(NotificationMethod)))
     scheduled_at: datetime

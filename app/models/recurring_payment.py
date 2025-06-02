@@ -15,8 +15,8 @@ class Frequency(str, Enum):
 
 class RecurringPayment(BaseModel, table=True):
     __tablename__ = "recurring_payment"
-    user_id: int = Field(foreign_key="user.id")
-    category_id: int = Field(foreign_key="category.id")
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
+    category_id: int = Field(foreign_key="category.id", ondelete="CASCADE")
     amount: float
     description: Optional[str] = None
     frequency: Frequency = Field(sa_column=Column(SqlEnum(Frequency)))

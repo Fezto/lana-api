@@ -7,8 +7,8 @@ from .base import BaseModel
 
 
 class Budget(BaseModel, table=True):
-    user_id: int = Field(foreign_key="user.id")
-    category_id: int = Field(foreign_key="category.id")
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
+    category_id: int = Field(foreign_key="category.id", ondelete="CASCADE")
     amount: float
     month_year: str  # formato 'YYYY-MM'
 

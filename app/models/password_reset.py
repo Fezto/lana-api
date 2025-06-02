@@ -7,7 +7,7 @@ from .base import BaseModel
 
 class PasswordReset(BaseModel, table=True):
     __tablename__ = "password_reset"
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     token: str
     expires_at: datetime
     used: bool = False

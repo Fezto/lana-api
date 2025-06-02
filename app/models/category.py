@@ -13,7 +13,7 @@ class CategoryType(str, Enum):
     expense = "expense"
 
 class Category(BaseModel, table=True):
-    user_id: int = Field(foreign_key="user.id")
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     name: str
     type: CategoryType = Field(sa_column=Column(SqlEnum(CategoryType)))
 
