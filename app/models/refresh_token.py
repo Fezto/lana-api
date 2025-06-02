@@ -6,7 +6,7 @@ from .base import BaseModel
 
 
 class RefreshToken(BaseModel, table=True):
-    __tablename__ = "refresh_taken"
+    __tablename__ = "refresh_token"
     user_id: int = Field(foreign_key="user.id")
     token: str
     expires_at: datetime

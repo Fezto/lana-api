@@ -17,7 +17,7 @@ class User(BaseModel, table=True):
 
     refresh_tokens: List["RefreshToken"] = Relationship(back_populates="user")
     password_reset_requests: List["PasswordReset"] = Relationship(back_populates="user")
-    email_verifications: List["EmailVerification"] = Relationship(back_populates="user")
+    email_verification: "EmailVerification" = Relationship(back_populates="user")
     categories: List["Category"] = Relationship(back_populates="user")
     budgets: List["Budget"] = Relationship(back_populates="user")
     transactions: List["Transaction"] = Relationship(back_populates="user")

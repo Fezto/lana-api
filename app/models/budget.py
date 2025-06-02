@@ -12,6 +12,5 @@ class Budget(BaseModel, table=True):
     amount: float
     month_year: str  # formato 'YYYY-MM'
 
-    user: "User" = Relationship(back_populates="transactions")
-    category: "Category" = Relationship(back_populates="transactions")
-    recurring: Optional["RecurringPayment"] = Relationship(back_populates="transactions")
+    user: "User" = Relationship(back_populates="budgets")
+    category: "Category" = Relationship(back_populates="budgets")

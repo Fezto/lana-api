@@ -29,4 +29,4 @@ class Transaction(BaseModel, table=True):
 
     user: "User" = Relationship(back_populates="transactions")
     category: "Category" = Relationship(back_populates="transactions")
-    recurring: Optional["RecurringPayment"] = Relationship(back_populates="transactions")
+    recurring_payments: Optional["RecurringPayment"] = Relationship(back_populates="transactions")
