@@ -4,18 +4,6 @@ import httpx
 from pydantic import EmailStr
 from fastapi import HTTPException
 
-# Configuración de Mailgun Sandbox
-# Asegúrate de definir en tu .env:
-#   MAILGUN_API_KEY=key-XXXXXXXXXXXXXXXXXXXXXXXX  <- tu API Key privado (no el Key ID)
-#   MAILGUN_DOMAIN=sandboxaef9c7485f484502923079ad3d4b0e8f.mailgun.org
-#   MAIL_FROM_ADDRESS=postmaster@sandboxaef9c7485f484502923079ad3d4b0e8f.mailgun.org
-#   MAIL_FROM_NAME=Lana
-#   API_URL=http://localhost:8000
-#
-# Importante:
-# 1. Usa la API Key privada (que comienza con "key-"), no la Key ID como "7c5e3295-2b5a51cc".
-# 2. En el modo sandbox, solo puedes enviar correos a direcciones que hayas verificado en el panel de Mailgun.
-
 MAILGUN_API_KEY = os.getenv("MAILGUN_API_KEY")
 MAILGUN_DOMAIN = os.getenv("MAILGUN_DOMAIN")
 MAIL_FROM_ADDRESS = os.getenv("MAIL_FROM_ADDRESS")
