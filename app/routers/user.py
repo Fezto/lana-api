@@ -7,9 +7,20 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.session import get_session
 from app.utils.hash import get_password_hash
+from app.utils.user import get_current_user
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+
+@router.get(
+    "/me",
+    response_model=UserRead,
+    operation_id="getCurrentUser"
+)
+def read_current_user(
+    current_user: User = Depends(get_current_user)   # <- aquí
+):
+    return current_user
 
 @router.get(
     "/",
