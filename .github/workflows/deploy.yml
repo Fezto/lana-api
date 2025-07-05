@@ -10,38 +10,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 2.1. Obtener el código
+      # 1) Obtener el código
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2.2. Configurar la llave SSH
+      # 2) Configurar la llave SSH en ~/.ssh/id_ed25519
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          # Escribe aquí tu clave privada en un fichero llamado id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Añade la huella del host para que no pregunte
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      # 2.3. Conectar por SSH y desplegar
+      # 3) Conectar por SSH y desplegar usando root
       - name: SSH Deploy
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 \
+              -o StrictHostKeyChecking=no \
+              root@${{ secrets.SSH_HOST }} << 'EOF'
             set -e
 
-            # 2.3.1. Ir al directorio donde está tu repo
+            # 3.1. Ir al directorio donde está tu repo bajo root
             cd /root/lana-api
 
-            # 2.3.2. Sincronizar con main
+            # 3.2. Sincronizar con main
             git fetch --all
             git reset --hard origin/main
 
-            # 2.3.3. Activar tu virtualenv e instalar deps
+            # 3.3. Activar virtualenv e instalar deps
             source .venv/bin/activate
             pip install --upgrade -r requirements.txt
 
-            # 2.3.4. Reiniciar el servicio systemd de FastAPI
+            # 3.4. Reiniciar tu servicio systemd de FastAPI
             systemctl restart lana-api
 
-            # 2.3.5. Validar y recargar Nginx
+            # 3.5. Validar y recargar Nginx
             nginx -t && systemctl reload nginx
           EOF
