@@ -1,4 +1,4 @@
-name: Deploy LanaAPI to Chapiritas
+name: 🚀 Deploy LanaAPI to Chapiritas
 
 on:
   push:
@@ -6,46 +6,54 @@ on:
 
 jobs:
   deploy:
-    name: Deploy API
     runs-on: ubuntu-latest
+    env:
+      # Fija el socket para que ssh-agent lo use
+      SSH_AUTH_SOCK: /tmp/ssh_agent.sock
 
     steps:
-      # 1) Obtener el código
+      # 1) Checkout de tu código
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2) Configurar la llave SSH en ~/.ssh/id_ed25519
-      - name: Setup SSH key
+      # 2) Iniciar ssh-agent y cargar tu clave con passphrase
+      - name: Setup SSH agent with passphrase
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PASSPHRASE:  ${{ secrets.SSH_PASSPHRASE }}
+          SSH_HOST:        ${{ secrets.SSH_HOST }}
         run: |
+          # Inicia el agente en el socket definido
+          ssh-agent -a "$SSH_AUTH_SOCK" > /dev/null
+
+          # Crea un pequeño helper que devuelva la passphrase
+          echo 'echo $SSH_PASSPHRASE' > ~/.ssh_askpass
+          chmod +x ~/.ssh_askpass
+
+          # Añade tu clave al agente usando SSH_ASKPASS
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' \
+            | DISPLAY=none SSH_ASKPASS=~/.ssh_askpass ssh-add - > /dev/null
+
+          # Comprueba que quedó cargada
+          ssh-add -l
+
+          # Guarda la huella de tu host para no preguntar luego
           mkdir -p ~/.ssh
-          # Escribe aquí tu clave privada en un fichero llamado id_ed25519
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          # Añade la huella del host para que no pregunte
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-      # 3) Conectar por SSH y desplegar usando root
+      # 3) Conectar por SSH y desplegar
       - name: SSH Deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 \
-              -o StrictHostKeyChecking=no \
-              root@${{ secrets.SSH_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'EOF'
             set -e
-
-            # 3.1. Ir al directorio donde está tu repo bajo root
             cd /root/lana-api
-
-            # 3.2. Sincronizar con main
             git fetch --all
             git reset --hard origin/main
-
-            # 3.3. Activar virtualenv e instalar deps
             source .venv/bin/activate
             pip install --upgrade -r requirements.txt
-
-            # 3.4. Reiniciar tu servicio systemd de FastAPI
             systemctl restart lana-api
-
-            # 3.5. Validar y recargar Nginx
             nginx -t && systemctl reload nginx
           EOF
