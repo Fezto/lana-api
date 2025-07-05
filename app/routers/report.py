@@ -4,12 +4,13 @@ from datetime import date
 from typing import Optional, Literal
 
 from app.session import get_session
-from app.models import Transaction, Category
+from app.models import Transaction, Category, User
 from app.schemas.report import (
     IncomeExpenseItem, IncomeExpenseResponse,
     CategoryReportItem, CategoryReportResponse,
     TrendItem, TrendReportResponse
 )
+from app.utils.user import get_current_user  # Agregar import
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -21,14 +22,11 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 def get_income_expense(
     *,
     session: Session = Depends(get_session),
-    user_id: int = Query(...),
+    current_user: User = Depends(get_current_user),  # OAuth en lugar de user_id
     start_date: date = Query(...),
     end_date: date = Query(...)
 ):
-    """
-    Totales de ingresos vs gastos por mes dentro de un rango de fechas.
-    """
-    # Usamos DATE_FORMAT para agrupar por año-mes
+    """Totales de ingresos vs gastos por mes dentro de un rango de fechas."""
     stmt = (
         select(
             func.date_format(Transaction.date, '%Y-%m').label('period'),
@@ -45,7 +43,7 @@ def get_income_expense(
         )
         .join(Category, Category.id == Transaction.category_id)
         .where(
-            Transaction.user_id == user_id,
+            Transaction.user_id == current_user.id,  # Usar current_user.id
             Transaction.date >= start_date,
             Transaction.date <= end_date
         )
@@ -64,14 +62,12 @@ def get_income_expense(
 def get_by_category(
     *,
     session: Session = Depends(get_session),
-    user_id: int = Query(...),
+    current_user: User = Depends(get_current_user),  # OAuth en lugar de user_id
     start_date: date = Query(...),
     end_date: date = Query(...),
     type: Optional[Literal['income','expense']] = Query(None)
 ):
-    """
-    Totales por categoría dentro de un rango de fechas. Puedes filtrar por tipo.
-    """
+    """Totales por categoría dentro de un rango de fechas."""
     stmt = (
         select(
             Category.id.label('category_id'),
@@ -80,7 +76,7 @@ def get_by_category(
         )
         .join(Category, Category.id == Transaction.category_id)
         .where(
-            Transaction.user_id == user_id,
+            Transaction.user_id == current_user.id,  # Usar current_user.id
             Transaction.date >= start_date,
             Transaction.date <= end_date
         )
@@ -104,20 +100,17 @@ def get_by_category(
 def get_trends(
     *,
     session: Session = Depends(get_session),
-    user_id: int = Query(...),
+    current_user: User = Depends(get_current_user),  # OAuth en lugar de user_id
     start_date: date = Query(...),
     end_date: date = Query(...),
     granularity: Literal['daily','weekly','monthly'] = Query('daily')
 ):
-    """
-    Serie temporal de transacciones (ingresos y gastos). Suma total por periodo.
-    """
-    # Definir expresión de agrupación según granularity
+    """Serie temporal de transacciones por periodo."""
     if granularity == 'daily':
         period_expr = func.date_format(Transaction.date, '%Y-%m-%d')
     elif granularity == 'monthly':
         period_expr = func.date_format(Transaction.date, '%Y-%m')
-    else:  # weekly: ISO semana
+    else:  # weekly
         period_expr = func.concat(
             func.date_format(Transaction.date, '%Y'),
             '-W', func.week(Transaction.date)
@@ -129,7 +122,7 @@ def get_trends(
             func.sum(Transaction.amount).label('total')
         )
         .where(
-            Transaction.user_id == user_id,
+            Transaction.user_id == current_user.id,  # Usar current_user.id
             Transaction.date >= start_date,
             Transaction.date <= end_date
         )

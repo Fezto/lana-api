@@ -10,8 +10,10 @@ class BudgetBase(SQLModel):
     month_year: str  # formato 'YYYY-MM'!!!
 
 
-class BudgetCreate(BudgetBase):
-    pass
+class BudgetCreate(SQLModel):  # No heredar de BudgetBase
+    category_id: int
+    amount: Decimal
+    month_year: str
 
 
 class BudgetRead(BudgetBase):

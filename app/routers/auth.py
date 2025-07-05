@@ -1,5 +1,6 @@
 # app/api/routers/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from datetime import datetime, timedelta
 
@@ -17,9 +18,36 @@ from app.schemas.auth import (
 from app.utils.hash import get_password_hash, verify_password
 from app.utils.email import send_verification_email, send_reset_email
 from app.utils.tokens import create_access_token, create_refresh_token, decode_token
+from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+@router.post("/token", response_model=dict)
+def oauth_token(
+        *,
+        session: Session = Depends(get_session),
+        form_data: OAuth2PasswordRequestForm = Depends()
+):
+    # Buscar usuario por email (form_data.username será tu email)
+    user = session.exec(
+        select(User).where(User.email == form_data.username)
+    ).one_or_none()
+
+    if not user or not verify_password(form_data.password, user.password_hash):  # Cambiar user.password por user.password_hash
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Generar token
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 @router.post(
     "/register",

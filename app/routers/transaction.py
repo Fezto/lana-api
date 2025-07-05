@@ -3,13 +3,14 @@ from datetime import timedelta, date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select
 
-from app.models import Transaction, RecurringPayment
+from app.models import Transaction, RecurringPayment, User
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionRead,
     TransactionUpdate
 )
 from app.session import get_session
+from app.utils.user import get_current_user  # Agregado
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -23,9 +24,11 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 def create_transaction(
     *,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     transaction_in: TransactionCreate
 ):
     transaction = Transaction.from_orm(transaction_in)
+    transaction.user_id = current_user.id  # Asignar automáticamente
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
@@ -40,11 +43,11 @@ def create_transaction(
 def list_transactions(
     *,
     session: Session = Depends(get_session),
-    user_id: int,
+    current_user: User = Depends(get_current_user),
     start_date: str = Query(None, description="Start date YYYY-MM-DD"),
     end_date: str = Query(None, description="End date YYYY-MM-DD")
 ):
-    query = select(Transaction).where(Transaction.user_id == user_id)
+    query = select(Transaction).where(Transaction.user_id == current_user.id)
 
     if start_date:
         query = query.where(Transaction.date >= start_date)
@@ -63,10 +66,11 @@ def list_transactions(
 def get_transaction(
     *,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     transaction_id: int
 ):
     transaction = session.get(Transaction, transaction_id)
-    if not transaction:
+    if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return transaction
 
@@ -79,11 +83,12 @@ def get_transaction(
 def update_transaction(
     *,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     transaction_id: int,
     transaction_in: TransactionUpdate
 ):
     transaction = session.get(Transaction, transaction_id)
-    if not transaction:
+    if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     for key, value in transaction_in.model_dump(exclude_unset=True).items():
@@ -103,15 +108,17 @@ def update_transaction(
 def delete_transaction(
     *,
     session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
     transaction_id: int
 ):
     transaction = session.get(Transaction, transaction_id)
-    if not transaction:
+    if not transaction or transaction.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     session.delete(transaction)
     session.commit()
     return
+
 
 @router.post(
     "/generate-recurring",
@@ -122,18 +129,13 @@ def delete_transaction(
 def generate_recurring_transactions(
     *,
     session: Session = Depends(get_session),
-    user_id: int,
+    current_user: User = Depends(get_current_user),
     today: date = Depends(lambda: date.today())
 ):
-    """
-    Busca todos los recurring_payments con next_due_date <= today y active=True,
-    crea una transaction por cada uno y actualiza next_due_date al siguiente ciclo.
-    """
-    # 1. Traer pagos fijos pendientes
     recs = session.exec(
         select(RecurringPayment)
         .where(
-            RecurringPayment.user_id == user_id,
+            RecurringPayment.user_id == current_user.id,
             RecurringPayment.active == True,
             RecurringPayment.next_due_date <= today
         )
@@ -144,7 +146,6 @@ def generate_recurring_transactions(
 
     created: list[Transaction] = []
     for rp in recs:
-        # 2. Crear transacción
         tx = Transaction(
             user_id=rp.user_id,
             category_id=rp.category_id,
@@ -158,7 +159,6 @@ def generate_recurring_transactions(
         session.add(tx)
         created.append(tx)
 
-        # 3. Calcular next_due_date según frecuencia
         if rp.frequency == "daily":
             rp.next_due_date += timedelta(days=1)
         elif rp.frequency == "weekly":
@@ -166,14 +166,11 @@ def generate_recurring_transactions(
         elif rp.frequency == "biweekly":
             rp.next_due_date += timedelta(weeks=2)
         elif rp.frequency == "monthly":
-            # simple: sumar 1 mes saltando fin de mes
             yr, m = divmod(rp.next_due_date.year * 12 + rp.next_due_date.month, 12)
             rp.next_due_date = rp.next_due_date.replace(year=yr, month=m+1)
-        # si quisieras inactivar cuando fallen, podrías rp.active = False
 
         session.add(rp)
 
-    # 4. Commit todo junto
     session.commit()
     for tx in created:
         session.refresh(tx)

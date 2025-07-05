@@ -8,8 +8,10 @@ class NotificationBase(SQLModel):
     method: Literal["email", "sms"]
     scheduled_at: datetime
 
-class NotificationCreate(NotificationBase):
-    pass
+class NotificationCreate(SQLModel):  # No heredar de NotificationBase
+    message: str
+    method: Literal["email", "sms"]
+    scheduled_at: datetime
 
 class NotificationRead(NotificationBase):
     id: int
@@ -19,4 +21,4 @@ class NotificationUpdate(SQLModel):
     message: Optional[str] = None
     method: Optional[Literal["email", "sms"]] = None
     scheduled_at: Optional[datetime] = None
-    sent: Optional[bool] = None
+    sent: Optional[bool] = N

@@ -6,8 +6,9 @@ class CategoryBase(SQLModel):
     name: str
     type: Literal["income", "expense"]
 
-class CategoryCreate(CategoryBase):
-    pass
+class CategoryCreate(SQLModel):  # No heredar de CategoryBase
+    name: str
+    type: Literal["income", "expense"]
 
 class CategoryRead(CategoryBase):
     id: int

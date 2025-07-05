@@ -2,7 +2,6 @@ from sqlmodel import SQLModel
 from typing import Optional, Literal
 from datetime import date
 
-
 class TransactionBase(SQLModel):
     user_id: int
     category_id: int
@@ -14,14 +13,18 @@ class TransactionBase(SQLModel):
     recurring_id: Optional[int] = None
     failure_reason: Optional[str] = None
 
-
-class TransactionCreate(TransactionBase):
-    pass
-
+class TransactionCreate(SQLModel):  # No heredar de TransactionBase
+    category_id: int
+    amount: float
+    date: date
+    description: Optional[str] = None
+    type: Literal["manual", "auto"] = "manual"
+    status: Literal["pending", "completed", "failed"] = "pending"
+    recurring_id: Optional[int] = None
+    failure_reason: Optional[str] = None
 
 class TransactionRead(TransactionBase):
     id: int
-
 
 class TransactionUpdate(SQLModel):
     category_id: Optional[int] = None
