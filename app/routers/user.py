@@ -41,7 +41,7 @@ def api_read_users(
 @router.get(
     "/{user_id}",
     response_model=UserRead,
-    summary="Get a user by ID",
+    summary="Get a user by ID!!",
     operation_id="getUserById"  # <- aquí
 )
 def api_read_user(

@@ -1,0 +1,47 @@
+name: Deploy LanaAPI to Chapiritas
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy API
+    runs-on: ubuntu-latest
+
+    steps:
+      # 2.1. Obtener el código
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2.2. Configurar la llave SSH
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      # 2.3. Conectar por SSH y desplegar
+      - name: SSH Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            set -e
+
+            # 2.3.1. Ir al directorio donde está tu repo
+            cd /root/lana-api
+
+            # 2.3.2. Sincronizar con main
+            git fetch --all
+            git reset --hard origin/main
+
+            # 2.3.3. Activar tu virtualenv e instalar deps
+            source .venv/bin/activate
+            pip install --upgrade -r requirements.txt
+
+            # 2.3.4. Reiniciar el servicio systemd de FastAPI
+            systemctl restart lana-api
+
+            # 2.3.5. Validar y recargar Nginx
+            nginx -t && systemctl reload nginx
+          EOF
