@@ -13,7 +13,7 @@ class RecurringPayment(BaseModel, table=True):
     category_id: int = Field(foreign_key="category.id", ondelete="CASCADE")
     amount: float
     description: Optional[str] = None
-    frequency: Frequency = Field(sa_column=Column(SqlEnum(Frequency)))
+    frequency: Frequency
     next_due_date: date
     active: bool = True
 

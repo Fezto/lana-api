@@ -17,11 +17,15 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 def create_category(
     *,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),  # OAuth
+    current_user: User = Depends(get_current_user),
     category_in: CategoryCreate
 ):
-    category = Category.from_orm(category_in)
-    category.user_id = current_user.id  # Asignar automáticamente
+    # ✅ SOLUCIÓN: Construir directamente con user_id
+    category = Category(
+        **category_in.model_dump(),
+        user_id=current_user.id
+    )
+
     session.add(category)
     session.commit()
     session.refresh(category)

@@ -21,4 +21,4 @@ class NotificationUpdate(SQLModel):
     message: Optional[str] = None
     method: Optional[Literal["email", "sms"]] = None
     scheduled_at: Optional[datetime] = None
-    sent: Optional[bool] = N
+    sent: Optional[bool] = None  # ✅ Cambiar 'N' por 'None'

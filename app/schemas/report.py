@@ -12,7 +12,6 @@ class IncomeExpenseResponse(SQLModel):
     items: List[IncomeExpenseItem]
 
 # Totals by category for a date range
-
 class CategoryReportItem(SQLModel):
     category_id: int
     category_name: str
@@ -24,7 +23,6 @@ class CategoryReportResponse(SQLModel):
     items: List[CategoryReportItem]
 
 # Time series trends
-gran: Literal["daily", "weekly", "monthly"]
 class TrendItem(SQLModel):
     period: str      # date string according to granularity
     total: float

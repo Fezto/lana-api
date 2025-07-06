@@ -9,6 +9,7 @@ from app.utils.user import get_current_user  # Cambiar import
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
 
+
 @router.post(
     "/",
     response_model=BudgetRead,
@@ -16,17 +17,14 @@ router = APIRouter(prefix="/budgets", tags=["budgets"])
     operation_id="createBudget"
 )
 def create_budget(
-    *,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),  # OAuth en lugar de budget_in.user_id
-    budget_in: BudgetCreate
+        *,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+        budget_in: BudgetCreate
 ):
-    # Forzar que sea del usuario autenticado
-    budget_in.user_id = current_user.id
-
     existing = session.exec(
         select(Budget).where(
-            Budget.user_id == current_user.id,  # Usar current_user.id
+            Budget.user_id == current_user.id,
             Budget.category_id == budget_in.category_id,
             Budget.month_year == budget_in.month_year
         )
@@ -35,7 +33,12 @@ def create_budget(
     if existing:
         raise HTTPException(status_code=400, detail="Budget already exists for this month and category")
 
-    budget = Budget.from_orm(budget_in)
+    # ✅ SOLUCIÓN: Construir directamente con user_id
+    budget = Budget(
+        **budget_in.model_dump(),
+        user_id=current_user.id
+    )
+
     session.add(budget)
     session.commit()
     session.refresh(budget)

@@ -9,7 +9,7 @@ from ..enums.notification_method import NotificationMethod
 class Notification(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     message: str
-    method: NotificationMethod = Field(sa_column=Column(SqlEnum(NotificationMethod)))
+    method: NotificationMethod
     scheduled_at: datetime
     sent: bool = False
 

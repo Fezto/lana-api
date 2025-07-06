@@ -11,8 +11,7 @@ from app.enums.category_type import CategoryType
 class Category(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     name: str
-    type: CategoryType = Field(sa_column=Column(SqlEnum(CategoryType)))
-
+    type: CategoryType
     user: "User" = Relationship(back_populates="categories")
     budgets: List["Budget"] = Relationship(back_populates="category")
     transactions: List["Transaction"] = Relationship(back_populates="category")

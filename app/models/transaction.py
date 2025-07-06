@@ -14,8 +14,8 @@ class Transaction(BaseModel, table=True):
     amount: float
     date: date
     description: Optional[str] = None
-    type: TransactionType = Field(default=TransactionType.MANUAL, sa_column=Column(SqlEnum(TransactionType)))
-    status: TransactionStatus = Field(default=TransactionStatus.PENDING, sa_column=Column(SqlEnum(TransactionStatus)))
+    type: TransactionType
+    status: TransactionStatus
     recurring_id: Optional[int] = Field(default=None, foreign_key="recurring_payment.id", ondelete="CASCADE")
     failure_reason: Optional[str] = None
 

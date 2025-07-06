@@ -22,13 +22,17 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
     operation_id="createTransaction"
 )
 def create_transaction(
-    *,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-    transaction_in: TransactionCreate
+        *,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+        transaction_in: TransactionCreate
 ):
-    transaction = Transaction.from_orm(transaction_in)
-    transaction.user_id = current_user.id  # Asignar automáticamente
+    # ✅ SOLUCIÓN: Construir directamente con user_id
+    transaction = Transaction(
+        **transaction_in.model_dump(),
+        user_id=current_user.id
+    )
+
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
@@ -175,4 +179,4 @@ def generate_recurring_transactions(
     for tx in created:
         session.refresh(tx)
 
-    return [TransactionRead.from_orm(tx) for tx in created]
+    return created

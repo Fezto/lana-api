@@ -13,6 +13,7 @@ from app.utils.user import get_current_user  # Cambiar import
 
 router = APIRouter(prefix="/recurring-payments", tags=["recurring-payments"])
 
+
 @router.post(
     "/",
     response_model=RecurringPaymentRead,
@@ -20,13 +21,16 @@ router = APIRouter(prefix="/recurring-payments", tags=["recurring-payments"])
     operation_id="createRecurringPayment"
 )
 def create_recurring_payment(
-    *,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),  # OAuth
-    rp_in: RecurringPaymentCreate
+        *,
+        session: Session = Depends(get_session),
+        current_user: User = Depends(get_current_user),
+        rp_in: RecurringPaymentCreate
 ):
-    rp = RecurringPayment.from_orm(rp_in)
-    rp.user_id = current_user.id  # Asignar automáticamente
+    rp = RecurringPayment(
+        **rp_in.model_dump(),
+        user_id=current_user.id
+    )
+
     session.add(rp)
     session.commit()
     session.refresh(rp)

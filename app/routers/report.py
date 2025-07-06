@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, func
+from sqlalchemy import case
 from datetime import date
 from typing import Optional, Literal
+
 
 from app.session import get_session
 from app.models import Transaction, Category, User
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 def get_income_expense(
     *,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),  # OAuth en lugar de user_id
+    current_user: User = Depends(get_current_user),
     start_date: date = Query(...),
     end_date: date = Query(...)
 ):
@@ -31,19 +33,21 @@ def get_income_expense(
         select(
             func.date_format(Transaction.date, '%Y-%m').label('period'),
             func.sum(
-                func.case(
-                    [(Category.type == 'income', Transaction.amount)], else_=0
+                case(
+                    (Category.type == 'income', Transaction.amount),
+                    else_=0
                 )
             ).label('income'),
             func.sum(
-                func.case(
-                    [(Category.type == 'expense', Transaction.amount)], else_=0
+                case(
+                    (Category.type == 'expense', Transaction.amount),
+                    else_=0
                 )
             ).label('expense')
         )
         .join(Category, Category.id == Transaction.category_id)
         .where(
-            Transaction.user_id == current_user.id,  # Usar current_user.id
+            Transaction.user_id == current_user.id,
             Transaction.date >= start_date,
             Transaction.date <= end_date
         )
@@ -53,7 +57,6 @@ def get_income_expense(
     results = session.exec(stmt).all()
     items = [IncomeExpenseItem(**r._asdict()) for r in results]
     return IncomeExpenseResponse(items=items)
-
 @router.get(
     "/by-category",
     response_model=CategoryReportResponse,
