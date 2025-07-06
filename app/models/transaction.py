@@ -4,17 +4,9 @@ from typing import Optional
 from sqlmodel import Field, Column, Enum as SqlEnum, Relationship
 
 from .base import BaseModel
+from ..enums.transaction_status import TransactionStatus
+from ..enums.transaction_type import TransactionType
 
-
-
-class TransactionType(str, Enum):
-    MANUAL = "manual"
-    AUTO = "auto"
-
-class TransactionStatus(str, Enum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    FAILED = "failed"
 
 class Transaction(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")

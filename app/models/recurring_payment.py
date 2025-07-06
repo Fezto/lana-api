@@ -4,14 +4,8 @@ from typing import Optional, List
 from sqlmodel import Field, Column, Enum as SqlEnum, Relationship
 
 from .base import BaseModel
+from ..enums.frequency import Frequency
 
-
-
-class Frequency(str, Enum):
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    BIWEEKLY = "biweekly"
-    MONTHLY = "monthly"
 
 class RecurringPayment(BaseModel, table=True):
     __tablename__ = "recurring_payment"
