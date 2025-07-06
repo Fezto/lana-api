@@ -6,11 +6,7 @@ from sqlmodel import Field, Column
 
 
 from .base import BaseModel
-
-
-class CategoryType(str, Enum):
-    income = "income"
-    expense = "expense"
+from app.enums.category_type import CategoryType
 
 class Category(BaseModel, table=True):
     user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
