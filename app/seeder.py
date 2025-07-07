@@ -1,158 +1,142 @@
-# scripts/seed.py
-
-import random
-from datetime import date, timedelta
-from faker import Faker
-from sqlmodel import Session
-from app.database import engine
-
-from app.models import (
-    User, Category, Budget,
-    Transaction, RecurringPayment,
-    Notification, RefreshToken,
-    PasswordReset, EmailVerification
-)
+# seed_data.py
+from datetime import date, datetime, timedelta
+from sqlmodel import SQLModel, Session
+from app.models import User, Category, Budget, Transaction, RecurringPayment, Notification
 from app.utils.hash import get_password_hash
+from app.session import engine  # ✅ Importar el engine existente
 
-fake = Faker()
+
+def create_schema():
+    SQLModel.metadata.create_all(engine)
 
 
-def seed_users(session: Session, n=10):
-    users = []
-    for _ in range(n):
-        u = User(
-            first_name=fake.first_name(),
-            last_name=fake.last_name(),
-            email=fake.unique.email(),
-            telephone=fake.phone_number(),
-            password_hash=get_password_hash("secret123"),
-            email_verified=random.choice([True, False])
-        )
-        session.add(u)
-        users.append(u)
+def seed_user(session: Session) -> User:
+    hashed = get_password_hash("string")
+    user = User(
+        first_name="Test",
+        last_name="User",
+        email="122043099@upq.edu.mx",
+        telephone="555-1234",
+        password_hash=hashed,
+        email_verified=True,
+        created_at=datetime.utcnow(),
+    )
+    session.add(user)
     session.commit()
-    for u in users:
-        session.refresh(u)
-    return users
+    session.refresh(user)
+    return user
 
 
-def seed_categories(session: Session, users):
-    categories = []
-    for u in users:
-        for name, typ in [("Comida","expense"), ("Transporte","expense"),
-                          ("Entretenimiento","expense"), ("Salario","income")]:
-            c = Category(user_id=u.id, name=name, type=typ)
-            session.add(c)
-            categories.append(c)
+def seed_categories(session: Session, user: User):
+    cats = []
+    for name, ctype in [("Salario", "income"), ("Ventas", "income"),
+                        ("Comida", "expense"), ("Transporte", "expense")]:
+        cat = Category(user_id=user.id, name=name, type=ctype)
+        session.add(cat)
+        cats.append(cat)
     session.commit()
-    for c in categories:
-        session.refresh(c)
-    return categories
+    return cats
 
 
-def seed_budgets(session: Session, users, categories):
+def seed_budgets(session: Session, user: User, categories):
+    today = date.today()
     budgets = []
-    month = date.today().strftime("%Y-%m")
-    for u in users:
-        user_cats = [c for c in categories if c.user_id == u.id and c.type == "expense"]
-        for c in user_cats:
-            b = Budget(
-                user_id=u.id,
-                category_id=c.id,
-                amount=round(random.uniform(100, 1000), 2),
-                month_year=month
-            )
-            session.add(b)
-            budgets.append(b)
+    # crea presupuestos para los últimos 3 meses
+    for i in range(3):
+        m = (today.month - i - 1) % 12 + 1
+        y = today.year if today.month - i > 0 else today.year - 1
+        month_year = f"{y}-{m:02d}"
+        for cat in categories:
+            # sólo gastos
+            if cat.type == "expense":
+                b = Budget(
+                    user_id=user.id,
+                    category_id=cat.id,
+                    amount=200.00 + i * 50,  # varía un poco
+                    month_year=month_year,
+                )
+                session.add(b)
+                budgets.append(b)
     session.commit()
-    for b in budgets:
-        session.refresh(b)
     return budgets
 
 
-def seed_transactions(session: Session, users, categories, budgets, n=100):
+def seed_transactions(session: Session, user: User, categories):
     txs = []
-    for _ in range(n):
-        u = random.choice(users)
-        c = random.choice([c for c in categories if c.user_id == u.id])
-        day = random.randint(1, 28)
-        d = date.today().replace(day=day)
-        amount = round(
-            random.uniform(
-                10,
-                next((b.amount for b in budgets if b.user_id == u.id and b.category_id == c.id), 100)
-            ), 2
-        )
-        status = random.choices(["completed", "pending", "failed"], [0.7, 0.2, 0.1])[0]
-        tx = Transaction(
-            user_id=u.id,
-            category_id=c.id,
-            amount=amount,
-            date=d,
-            description=fake.sentence(nb_words=6),
-            type=random.choice(["manual", "auto"]),
-            status=status
-        )
-        session.add(tx)
-        txs.append(tx)
+    # últimos 15 días
+    for i in range(1, 16):
+        d = date.today() - timedelta(days=i)
+        # una transacción de ingreso y otra de gasto al día
+        income_cat = next(c for c in categories if c.type == "income")
+        expense_cat = next(c for c in categories if c.type == "expense")
+        txs.append(Transaction(
+            user_id=user.id, category_id=income_cat.id,
+            amount=1000.00 + i * 10, date=d,
+            description=f"Ingreso del día {i}", type="manual", status="completed"
+        ))
+        txs.append(Transaction(
+            user_id=user.id, category_id=expense_cat.id,
+            amount=20.00 + i, date=d,
+            description=f"Gasto del día {i}", type="manual", status="completed"
+        ))
+    session.add_all(txs)
     session.commit()
-    for tx in txs:
-        session.refresh(tx)
     return txs
 
 
-def seed_recurring(session: Session, users, categories, n=20):
+def seed_recurring_payments(session: Session, user: User, categories):
     recs = []
-    for _ in range(n):
-        u = random.choice(users)
-        c = random.choice([c for c in categories if c.user_id == u.id and c.type == "expense"] )
-        freq = random.choice(["daily", "weekly", "biweekly", "monthly"])
-        rp = RecurringPayment(
-            user_id=u.id,
-            category_id=c.id,
-            amount=round(random.uniform(50, 500), 2),
-            description=f"Pago {c.name}",
-            frequency=freq,
-            next_due_date=date.today() - timedelta(days=random.randint(0, 5)),
-            active=True
-        )
-        session.add(rp)
-        recs.append(rp)
+    expense_cat = next(c for c in categories if c.type == "expense")
+    # pago mensual de renta
+    recs.append(RecurringPayment(
+        user_id=user.id,
+        category_id=expense_cat.id,
+        amount=500.00,
+        description="Renta mensual",
+        frequency="monthly",
+        next_due_date=date.today().replace(day=1),
+        active=True,
+    ))
+    # pago semanal de suscripción
+    recs.append(RecurringPayment(
+        user_id=user.id,
+        category_id=expense_cat.id,
+        amount=15.00,
+        description="Subscripción semanal",
+        frequency="weekly",
+        next_due_date=date.today() - timedelta(days=date.today().weekday()),
+        active=True,
+    ))
+    session.add_all(recs)
     session.commit()
-    for rp in recs:
-        session.refresh(rp)
     return recs
 
 
-def seed_notifications(session: Session, users, n=30):
-    nots = []
-    for _ in range(n):
-        u = random.choice(users)
-        when = date.today() + timedelta(days=random.randint(0, 10))
-        notif = Notification(
-            user_id=u.id,
-            message=fake.sentence(nb_words=8),
-            method=random.choice(["email", "sms"]),
-            scheduled_at=when,
-            sent=random.choice([True, False])
-        )
-        session.add(notif)
-        nots.append(notif)
+def seed_notifications(session: Session, user: User):
+    notes = []
+    now = datetime.utcnow()
+    for i in range(5):
+        notes.append(Notification(
+            user_id=user.id,
+            message=f"Notificación de prueba #{i+1}",
+            method="email" if i % 2 == 0 else "sms",
+            scheduled_at=now + timedelta(hours=i),
+        ))
+    session.add_all(notes)
     session.commit()
-    for notif in nots:
-        session.refresh(notif)
-    return nots
+    return notes
 
 
 def main():
-    with Session(engine) as session:
-        users = seed_users(session, n=5)
-        categories = seed_categories(session, users)
-        budgets = seed_budgets(session, users, categories)
-        seed_transactions(session, users, categories, budgets, n=50)
-        seed_recurring(session, users, categories, n=10)
-        seed_notifications(session, users, n=20)
-    print("✅ Seeder completo.")
+    create_schema()
+    with Session(engine) as session:  # ✅ Usar el engine importado
+        user = seed_user(session)
+        categories = seed_categories(session, user)
+        seed_budgets(session, user, categories)
+        seed_transactions(session, user, categories)
+        seed_recurring_payments(session, user, categories)
+        seed_notifications(session, user)
+    print("✅ Datos de prueba insertados exitosamente.")
 
 
 if __name__ == "__main__":
