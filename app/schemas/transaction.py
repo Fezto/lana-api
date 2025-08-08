@@ -2,6 +2,9 @@ from sqlmodel import SQLModel
 from typing import Optional, Literal
 from datetime import date
 
+from app.schemas.category import CategoryRead
+
+
 class TransactionBase(SQLModel):
     user_id: int
     category_id: int
@@ -22,6 +25,7 @@ class TransactionCreate(SQLModel):  # No heredar de TransactionBase
     status: Literal["pending", "completed", "failed"] = "pending"
     recurring_id: Optional[int] = None
     failure_reason: Optional[str] = None
+
 
 class TransactionRead(TransactionBase):
     id: int

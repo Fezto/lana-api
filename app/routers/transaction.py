@@ -3,7 +3,7 @@ from datetime import timedelta, date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select
 
-from app.models import Transaction, RecurringPayment, User
+from app.models import Transaction, RecurringPayment, User, Category
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionRead,
@@ -51,8 +51,9 @@ def list_transactions(
     start_date: str = Query(None, description="Start date YYYY-MM-DD"),
     end_date: str = Query(None, description="End date YYYY-MM-DD")
 ):
-    query = select(Transaction).where(Transaction.user_id == current_user.id)
-
+    query = (
+        select(Transaction).where(Transaction.user_id == current_user.id)
+    )
     if start_date:
         query = query.where(Transaction.date >= start_date)
     if end_date:
