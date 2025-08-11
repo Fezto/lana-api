@@ -11,6 +11,9 @@ from app.routers.recurring_payment import router as recurring_payments_router
 from app.routers.budget import router as budget_router
 from app.routers.report import router as report_router
 
+from app.routers.notification import router as notifications_router
+
+
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
@@ -30,6 +33,7 @@ routers = [
     recurring_payments_router,
     budget_router,
     report_router,
+    notifications_router,
 ]
 
 # Incluir todos los routers

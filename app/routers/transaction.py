@@ -1,9 +1,11 @@
-from datetime import timedelta, date
+# app/routers/transaction.py  (reemplazar imports al inicio)
+from datetime import timedelta, date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select
 
-from app.models import Transaction, RecurringPayment, User, Category
+from app.models import Transaction, RecurringPayment, User, Category, Budget, Notification
+from app.enums.notification_method import NotificationMethod
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionRead,
@@ -11,6 +13,7 @@ from app.schemas.transaction import (
 )
 from app.session import get_session
 from app.utils.user import get_current_user  # Agregado
+from app.utils.email import _send_mailgun_email  # función async de mailgun (ya existente)
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -21,13 +24,15 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
     status_code=status.HTTP_201_CREATED,
     operation_id="createTransaction"
 )
+# app/routers/transaction.py  -> reemplazar la función create_transaction
 def create_transaction(
         *,
         session: Session = Depends(get_session),
         current_user: User = Depends(get_current_user),
-        transaction_in: TransactionCreate
+        transaction_in: TransactionCreate,
+        background_tasks: BackgroundTasks
 ):
-    # ✅ SOLUCIÓN: Construir directamente con user_id
+    # Construir transacción con user_id
     transaction = Transaction(
         **transaction_in.model_dump(),
         user_id=current_user.id
@@ -36,7 +41,64 @@ def create_transaction(
     session.add(transaction)
     session.commit()
     session.refresh(transaction)
+
+    # --- Comprobación del presupuesto de la categoría/mes ---
+    # convertir fecha a month_year tipo 'YYYY-MM'
+    tx_date = transaction.date or date.today()
+    month_year = f"{tx_date.year}-{tx_date.month:02d}"
+
+    # buscar presupuesto para user/category/month
+    budget = session.exec(
+        select(Budget).where(
+            Budget.user_id == current_user.id,
+            Budget.category_id == transaction.category_id,
+            Budget.month_year == month_year
+        )
+    ).first()
+
+    if budget:
+        # calcular lo gastado en ese mes y categoría
+        start_date = date(tx_date.year, tx_date.month, 1)
+        if tx_date.month == 12:
+            next_month = date(tx_date.year + 1, 1, 1)
+        else:
+            next_month = date(tx_date.year, tx_date.month + 1, 1)
+
+        txs = session.exec(
+            select(Transaction).where(
+                Transaction.user_id == current_user.id,
+                Transaction.category_id == transaction.category_id,
+                Transaction.date >= start_date,
+                Transaction.date < next_month
+            )
+        ).all()
+        total_spent = sum(t.amount for t in txs)
+
+        # si se supera el presupuesto -> crear Notification + enviar email en background
+        if total_spent > budget.amount:
+            message = (
+                f"Has superado el presupuesto para la categoría (id={budget.category_id}) "
+                f"del mes {month_year}. Presupuesto: {budget.amount:.2f}. Gastado: {total_spent:.2f}."
+            )
+
+            notif = Notification(
+                user_id=current_user.id,
+                message=message,
+                method=NotificationMethod.EMAIL,  # por defecto email; ver más abajo para SMS
+                scheduled_at=datetime.utcnow(),
+                sent=False
+            )
+            session.add(notif)
+            session.commit()
+
+            # Envío en background (mailgun)
+            subject = "Lana App — Presupuesto superado"
+            html = f"<p>{message}</p>"
+            # _send_mailgun_email es async, FastAPI BackgroundTasks admite async callables
+            background_tasks.add_task(_send_mailgun_email, current_user.email, subject, html)
+
     return transaction
+
 
 
 @router.get(
