@@ -106,89 +106,95 @@ def delete_notification(
 
     session.delete(notification)
     session.commit()
-
+    
+    # app/routers/notification.py  -> append: comprobación de pagos próximos
 @router.post("/run-checks", status_code=status.HTTP_200_OK, operation_id="runNotificationChecks")
 def run_notification_checks(
     *,
     session: Session = Depends(get_session),
     background_tasks: BackgroundTasks,
-    days_ahead: int = 2  # Por defecto, verificar pagos en los próximos 2 días
+    days_ahead: int = 2
 ):
+    """
+    Endpoint para ejecutar manualmente la comprobación de pagos recurrentes
+    y enviar alertas si falta presupuesto. (Útil para pruebas; en producción
+    conviene programarlo diariamente).
+    """
     today = date.today()
-    upcoming_date = today + timedelta(days=days_ahead)
+    cutoff = today + timedelta(days=days_ahead)
 
-    # Buscar pagos recurrentes programados dentro de los próximos días
-    recurring_payments = session.exec(
-        select(RecurringPayment).where(
-            RecurringPayment.next_due_date >= today,
-            RecurringPayment.next_due_date <= upcoming_date,
-            RecurringPayment.active == True
-        )
+    # obtener pagos recurrentes cuyo next_due_date esté dentro de los próximos `days_ahead` días
+    rps = session.exec(
+        select(RecurringPayment).where(RecurringPayment.next_due_date <= cutoff)
     ).all()
 
-    if not recurring_payments:
-        return {"message": "No hay pagos recurrentes próximos."}
+    created_notifications = 0
+    for rp in rps:
+        user = session.get(User, rp.user_id)
+        if not user:
+            continue
 
-    for rp in recurring_payments:
-        # Verificar presupuesto disponible para la categoría del pago recurrente
         month_year = f"{rp.next_due_date.year}-{rp.next_due_date.month:02d}"
+
+        # buscar presupuesto para ese mes/categoría
         budget = session.exec(
             select(Budget).where(
-                Budget.user_id == rp.user_id,
+                Budget.user_id == user.id,
                 Budget.category_id == rp.category_id,
                 Budget.month_year == month_year
             )
         ).first()
 
-        # Calcular el presupuesto restante
-        if budget:
-            # Calcular lo gastado en la categoría/mes
-            start_date = date(rp.next_due_date.year, rp.next_due_date.month, 1)
-            if rp.next_due_date.month == 12:
-                next_month = date(rp.next_due_date.year + 1, 1, 1)
-            else:
-                next_month = date(rp.next_due_date.year, rp.next_due_date.month + 1, 1)
-
-            transactions = session.exec(
-                select(Transaction).where(
-                    Transaction.user_id == rp.user_id,
-                    Transaction.category_id == rp.category_id,
-                    Transaction.date >= start_date,
-                    Transaction.date < next_month
-                )
-            ).all()
-            total_spent = sum(t.amount for t in transactions)
-            remaining_budget = budget.amount - total_spent
+        # calcular gastado en el mes
+        start_date = date(rp.next_due_date.year, rp.next_due_date.month, 1)
+        if rp.next_due_date.month == 12:
+            next_month = date(rp.next_due_date.year + 1, 1, 1)
         else:
-            remaining_budget = 0  # No hay presupuesto asignado para esta categoría
+            next_month = date(rp.next_due_date.year, rp.next_due_date.month + 1, 1)
 
-        # Si no hay suficiente presupuesto, generar notificación y enviar correo
-        if rp.amount > remaining_budget:
-            user = session.get(User, rp.user_id)
-            if not user:
+        txs = session.exec(
+            select(Transaction).where(
+                Transaction.user_id == user.id,
+                Transaction.category_id == rp.category_id,
+                Transaction.date >= start_date,
+                Transaction.date < next_month
+            )
+        ).all()
+        spent = sum(t.amount for t in txs)
+        remaining = (budget.amount - spent) if budget else 0.0
+
+        # si no hay suficiente presupuesto para el pago rp.amount -> crear notificación y enviar
+        if remaining < rp.amount:
+            message = (
+                f"Pago recurrente programado el {rp.next_due_date} por {rp.amount:.2f} "
+                f"en la categoría (id={rp.category_id}). Presupuesto disponible: {remaining:.2f}."
+            )
+            # evitar duplicados: buscar notificación igual no enviada
+            existing = session.exec(
+                select(Notification).where(
+                    Notification.user_id == user.id,
+                    Notification.message == message,
+                    Notification.sent == False
+                )
+            ).first()
+
+            if existing:
                 continue
 
-            message = (
-                f"El pago recurrente '{rp.description}' programado para el "
-                f"{rp.next_due_date} no tiene suficiente presupuesto. "
-                f"Presupuesto disponible: {remaining_budget:.2f}. "
-                f"Monto requerido: {rp.amount:.2f}."
-            )
-
-            # Crear notificación
-            notification = Notification(
-                user_id=rp.user_id,
+            notif = Notification(
+                user_id=user.id,
                 message=message,
                 method=NotificationMethod.EMAIL,
                 scheduled_at=datetime.utcnow(),
                 sent=False
             )
-            session.add(notification)
+            session.add(notif)
+            session.commit()
+            created_notifications += 1
 
-            # Enviar correo en segundo plano
-            subject = "Lana App — Alerta de presupuesto insuficiente"
+            # enviar mail en background
+            subject = "Lana App — Pago recurrente sin presupuesto suficiente"
             html = f"<p>{message}</p>"
             background_tasks.add_task(_send_mailgun_email, user.email, subject, html)
 
-    session.commit()
-    return {"message": "Verificación de notificaciones completada."}
+    return {"checked_until": str(cutoff), "notifications_created": created_notifications}
